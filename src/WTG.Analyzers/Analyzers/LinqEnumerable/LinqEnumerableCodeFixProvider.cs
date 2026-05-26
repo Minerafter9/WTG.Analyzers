@@ -121,9 +121,7 @@ namespace WTG.Analyzers
 			return InvocationExpression(
 				MemberAccessExpression(
 					SyntaxKind.SimpleMemberAccessExpression,
-					ParenthesizedExpression(m.Expression.WithoutTrivia())
-						.WithTriviaFrom(m.Expression)
-						.WithAdditionalAnnotations(Simplifier.Annotation),
+					WrapExpressionIfNeeded(m.Expression),
 					m.OperatorToken,
 					IdentifierName(nameof(Enumerable.Append))
 						.WithTriviaFrom(m.Name)))
@@ -146,9 +144,20 @@ namespace WTG.Analyzers
 			{
 				case 1:
 					listOfArgumentsAndSeparators.Add(Argument(LinqEnumerableUtils.GetFirstValue(m.Expression.TryGetExpressionFromParenthesizedExpression())!));
-					member = ParenthesizedExpression(invocation.ArgumentList.Arguments[0].Expression.WithoutTrivia())
-						.WithTriviaFrom(m.Expression)
-						.WithAdditionalAnnotations(Simplifier.Annotation);
+					{
+						var argExpression = invocation.ArgumentList.Arguments[0].Expression;
+						if (ContainsMemberBinding(argExpression))
+						{
+							member = argExpression.WithTriviaFrom(m.Expression);
+						}
+						else
+						{
+							member = ParenthesizedExpression(argExpression.WithoutTrivia())
+								.WithTriviaFrom(m.Expression)
+								.WithAdditionalAnnotations(Simplifier.Annotation);
+						}
+					}
+
 					break;
 				case 2:
 					listOfArgumentsAndSeparators.Add(invocation.ArgumentList.Arguments[1]);
@@ -212,6 +221,35 @@ namespace WTG.Analyzers
 						SeparatedList<ExpressionSyntax>(initializerItems)))
 					.WithTriviaFrom(invocation)
 					.WithAdditionalAnnotations(Simplifier.Annotation);
+		}
+
+		static ExpressionSyntax WrapExpressionIfNeeded(ExpressionSyntax expression)
+		{
+			// If the expression contains a MemberBindingExpression (from conditional access ?.),
+			// we must not wrap it in parentheses with a Simplifier.Annotation because doing so
+			// disconnects the binding from its ConditionalAccessExpression, causing Roslyn's
+			// speculative semantic model to crash with a NullReferenceException.
+			if (ContainsMemberBinding(expression))
+			{
+				return expression;
+			}
+
+			return ParenthesizedExpression(expression.WithoutTrivia())
+				.WithTriviaFrom(expression)
+				.WithAdditionalAnnotations(Simplifier.Annotation);
+		}
+
+		static bool ContainsMemberBinding(SyntaxNode node)
+		{
+			foreach (var descendant in node.DescendantNodesAndSelf())
+			{
+				if (descendant.IsKind(SyntaxKind.MemberBindingExpression))
+				{
+					return true;
+				}
+			}
+
+			return false;
 		}
 	}
 }
