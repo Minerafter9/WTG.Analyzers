@@ -144,20 +144,7 @@ namespace WTG.Analyzers
 			{
 				case 1:
 					listOfArgumentsAndSeparators.Add(Argument(LinqEnumerableUtils.GetFirstValue(m.Expression.TryGetExpressionFromParenthesizedExpression())!));
-					{
-						var argExpression = invocation.ArgumentList.Arguments[0].Expression;
-						if (argExpression.IsKind(SyntaxKind.InvocationExpression))
-						{
-							member = argExpression.WithTriviaFrom(m.Expression);
-						}
-						else
-						{
-							member = ParenthesizedExpression(argExpression.WithoutTrivia())
-								.WithTriviaFrom(m.Expression)
-								.WithAdditionalAnnotations(Simplifier.Annotation);
-						}
-					}
-
+					member = WrapExpressionIfNeeded(invocation.ArgumentList.Arguments[0].Expression.WithTriviaFrom(m.Expression));
 					break;
 				case 2:
 					listOfArgumentsAndSeparators.Add(invocation.ArgumentList.Arguments[1]);
