@@ -146,7 +146,7 @@ namespace WTG.Analyzers
 					listOfArgumentsAndSeparators.Add(Argument(LinqEnumerableUtils.GetFirstValue(m.Expression.TryGetExpressionFromParenthesizedExpression())!));
 					{
 						var argExpression = invocation.ArgumentList.Arguments[0].Expression;
-						if (ContainsMemberBinding(argExpression))
+						if (argExpression.IsKind(SyntaxKind.InvocationExpression))
 						{
 							member = argExpression.WithTriviaFrom(m.Expression);
 						}
@@ -225,11 +225,12 @@ namespace WTG.Analyzers
 
 		static ExpressionSyntax WrapExpressionIfNeeded(ExpressionSyntax expression)
 		{
-			// If the expression contains a MemberBindingExpression (from conditional access ?.),
-			// we must not wrap it in parentheses with a Simplifier.Annotation because doing so
-			// disconnects the binding from its ConditionalAccessExpression, causing Roslyn's
-			// speculative semantic model to crash with a NullReferenceException.
-			if (ContainsMemberBinding(expression))
+			// Invocation expressions never need parenthesization as they already have
+			// clear binding. Wrapping them can cause issues when the expression is part
+			// of a conditional access chain (?.), as it disconnects MemberBindingExpressions
+			// from their ConditionalAccessExpression, causing Roslyn's speculative semantic
+			// model to crash with a NullReferenceException.
+			if (expression.IsKind(SyntaxKind.InvocationExpression))
 			{
 				return expression;
 			}
@@ -237,19 +238,6 @@ namespace WTG.Analyzers
 			return ParenthesizedExpression(expression.WithoutTrivia())
 				.WithTriviaFrom(expression)
 				.WithAdditionalAnnotations(Simplifier.Annotation);
-		}
-
-		static bool ContainsMemberBinding(SyntaxNode node)
-		{
-			foreach (var descendant in node.DescendantNodesAndSelf())
-			{
-				if (descendant.IsKind(SyntaxKind.MemberBindingExpression))
-				{
-					return true;
-				}
-			}
-
-			return false;
 		}
 	}
 }
