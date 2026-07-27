@@ -39,7 +39,8 @@ namespace WTG.Analyzers
 
 			if (CanBeSimplified(context.Node, context.SemanticModel, context.CancellationToken))
 			{
-				if (IsValueCoercion(context.Node))
+				// Skip the code-fix when #if splits the expression; rewriting would drop the directives (CS1027).
+				if (IsValueCoercion(context.Node) || SurroundingExpressionContainsDirectives(context.Node))
 				{
 					context.ReportDiagnostic(
 						Diagnostic.Create(
@@ -138,6 +139,36 @@ namespace WTG.Analyzers
 
 			value = false;
 			return false;
+		}
+
+		static bool SurroundingExpressionContainsDirectives(SyntaxNode node)
+		{
+			var current = node;
+
+			while (current.Parent != null && IsBooleanCombiningExpression(current.Parent))
+			{
+				current = current.Parent;
+			}
+
+			return current.ContainsDirectives;
+		}
+
+		static bool IsBooleanCombiningExpression(SyntaxNode node)
+		{
+			switch (node.Kind())
+			{
+				case SyntaxKind.LogicalAndExpression:
+				case SyntaxKind.LogicalOrExpression:
+				case SyntaxKind.LogicalNotExpression:
+				case SyntaxKind.ParenthesizedExpression:
+				case SyntaxKind.AndAssignmentExpression:
+				case SyntaxKind.OrAssignmentExpression:
+				case SyntaxKind.ConditionalExpression:
+					return true;
+
+				default:
+					return false;
+			}
 		}
 	}
 }

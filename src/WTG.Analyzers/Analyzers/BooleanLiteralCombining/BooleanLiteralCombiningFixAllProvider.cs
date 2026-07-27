@@ -19,6 +19,11 @@ namespace WTG.Analyzers
 
 			foreach (var diagnostic in diagnostics)
 			{
+				if (!CommonDiagnosticProperties.CanAutoFix(diagnostic))
+				{
+					continue;
+				}
+
 				var expression = (LiteralExpressionSyntax)root.FindNode(
 					diagnostic.Location.SourceSpan,
 					getInnermostNodeForTie: true);
