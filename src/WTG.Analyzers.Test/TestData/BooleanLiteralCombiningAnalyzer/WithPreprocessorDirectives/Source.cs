@@ -27,4 +27,13 @@ public static class Bob
 		&& !(value0 && value1)
 #endif
 		;
+
+	public static bool Region(bool value)
+	{
+		return
+#region Keep this directive
+			value || false
+#endregion
+			;
+	}
 }

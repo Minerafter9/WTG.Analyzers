@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -37,10 +38,13 @@ namespace WTG.Analyzers
 				return;
 			}
 
-			if (CanBeSimplified(context.Node, context.SemanticModel, context.CancellationToken))
+			if (CanBeSimplified(context.Node, context.SemanticModel, context.CancellationToken, out var governingNode))
 			{
-				// Skip the code-fix when #if splits the expression; rewriting would drop the directives (CS1027).
-				if (IsValueCoercion(context.Node) || SurroundingExpressionContainsDirectives(context.Node))
+				// Do not offer an automatic fix when the governing expression contains
+				// preprocessor directives, because replacing it may discard directive trivia.
+				var containsPreprocessorDirectives = governingNode.ContainsDirectives;
+
+				if (IsValueCoercion(context.Node) || containsPreprocessorDirectives)
 				{
 					context.ReportDiagnostic(
 						Diagnostic.Create(
@@ -57,14 +61,16 @@ namespace WTG.Analyzers
 			}
 		}
 
-		static bool CanBeSimplified(SyntaxNode node, SemanticModel semanticModel, CancellationToken cancellationToken)
+		static bool CanBeSimplified(SyntaxNode node, SemanticModel semanticModel, CancellationToken cancellationToken, [NotNullWhen(true)] out SyntaxNode? governingNode)
 		{
-			if (node.Parent == null)
+			governingNode = node.Parent;
+
+			if (governingNode == null)
 			{
 				return false;
 			}
 
-			switch (node.Parent.Kind())
+			switch (governingNode.Kind())
 			{
 				case SyntaxKind.LogicalAndExpression:
 				case SyntaxKind.LogicalOrExpression:
@@ -75,7 +81,7 @@ namespace WTG.Analyzers
 					return true;
 
 				case SyntaxKind.ConditionalExpression:
-					var condition = (ConditionalExpressionSyntax)node.Parent;
+					var condition = (ConditionalExpressionSyntax)governingNode;
 					var expressionToCheck = condition.WhenTrue == node ? condition.WhenFalse : condition.WhenTrue;
 					var result = IsSimpleBooleanExpression(expressionToCheck, semanticModel, cancellationToken);
 					return result;
@@ -139,36 +145,6 @@ namespace WTG.Analyzers
 
 			value = false;
 			return false;
-		}
-
-		static bool SurroundingExpressionContainsDirectives(SyntaxNode node)
-		{
-			var current = node;
-
-			while (current.Parent != null && IsBooleanCombiningExpression(current.Parent))
-			{
-				current = current.Parent;
-			}
-
-			return current.ContainsDirectives;
-		}
-
-		static bool IsBooleanCombiningExpression(SyntaxNode node)
-		{
-			switch (node.Kind())
-			{
-				case SyntaxKind.LogicalAndExpression:
-				case SyntaxKind.LogicalOrExpression:
-				case SyntaxKind.LogicalNotExpression:
-				case SyntaxKind.ParenthesizedExpression:
-				case SyntaxKind.AndAssignmentExpression:
-				case SyntaxKind.OrAssignmentExpression:
-				case SyntaxKind.ConditionalExpression:
-					return true;
-
-				default:
-					return false;
-			}
 		}
 	}
 }

@@ -10,4 +10,7 @@
 	<diagnostic>
 		<location>Test0.cs: (25,54-58)</location>
 	</diagnostic>
+	<diagnostic>
+		<location>Test0.cs: (35,13-18)</location>
+	</diagnostic>
 </diagnostics>
