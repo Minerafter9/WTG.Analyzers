@@ -42,9 +42,7 @@ namespace WTG.Analyzers
 			{
 				// Do not offer an automatic fix when the governing expression contains
 				// preprocessor directives, because replacing it may discard directive trivia.
-				var containsPreprocessorDirectives = governingNode.ContainsDirectives;
-
-				if (IsValueCoercion(context.Node) || containsPreprocessorDirectives)
+				if (IsValueCoercion(context.Node) || governingNode.ContainsDirectives)
 				{
 					context.ReportDiagnostic(
 						Diagnostic.Create(
